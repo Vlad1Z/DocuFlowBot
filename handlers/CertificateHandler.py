@@ -30,7 +30,10 @@ class CertificateHandler(BaseHandler):
         user_id = message.from_user.id
         if user_id not in self.user_data:
             self.user_data[user_id] = {}
+
+        # Здесь мы устанавливаем тип справки в user_data
         self.user_data[user_id]['certificate_type'] = message.text
+
         choice_map = {
             'Справка о месте жительства и составе семьи': self.ask_for_address,
             'Справка о месте жительства': self.ask_for_address,
@@ -40,55 +43,76 @@ class CertificateHandler(BaseHandler):
         }
         handler_function = choice_map.get(message.text)
         if handler_function:
+            # Перед вызовом функции handler_function сохраняем тип справки
             handler_function(message)
         else:
             self.handle_unknown(message, self.show_certificate_options)
 
-
     def ask_for_address(self, message):
-        """Запрашивает у пользователя адрес проживания."""
         user_id = message.from_user.id
-        if not hasattr(self, 'user_data'):
-            self.user_data = {}
-        self.user_data[user_id] = {'certificate_type': message.text}  # Предполагаем, что тип справки уже сохранен
+        # Тут уже не должно быть присвоения типа справки, только запрос адреса
         self.bot.send_message(message.chat.id, "Введите адрес проживания (город, улица, дом):")
-        self.bot.register_next_step_handler(message, self.ask_for_full_name)
+        self.bot.register_next_step_handler(message, self.save_address)
 
-    def ask_for_full_name(self, message):
-        """Запрашивает у пользователя ФИО."""
+    def save_address(self, message):
         user_id = message.from_user.id
-        if user_id not in self.user_data:
-            self.user_data[user_id] = {}
-        # Сохраняем адрес перед получением ФИО
+        # Сохранение адреса в данные пользователя
         self.user_data[user_id]['address'] = message.text
+        # Продолжение диалога (например, запрос ФИО)
+        self.ask_for_full_name(message)
+
+    def ask_for_full_name(self, message, return_to_confirmation=False):
+        user_id = message.from_user.id
         self.bot.send_message(message.chat.id, "Введите ФИО полностью:")
-        self.bot.register_next_step_handler(message, self.ask_for_birth_date)
+        next_step_handler = self.save_full_name_and_confirm if return_to_confirmation else self.save_full_name
+        self.bot.register_next_step_handler(message, self.save_full_name)
+
+    def save_full_name(self, message):
+        user_id = message.from_user.id
+        self.user_data[user_id]['full_name'] = message.text
+        self.ask_for_birth_date(message)
+
+    def save_full_name_and_confirm(self, message):
+        self.save_full_name(message)
+        self.confirm_and_display_data(message)
 
     def ask_for_birth_date(self, message):
-        """Запрашивает у пользователя дату рождения."""
         user_id = message.from_user.id
-        self.user_data[user_id]['full_name'] = message.text  # Теперь правильно сохраняем ФИО
         self.bot.send_message(message.chat.id, "Введите дату рождения (в формате ДД.ММ.ГГГГ):")
-        self.bot.register_next_step_handler(message, self.ask_for_extra_details)
+        self.bot.register_next_step_handler(message, self.save_birth_date)
+
+    def save_birth_date(self, message):
+        user_id = message.from_user.id
+        self.user_data[user_id]['birth_date'] = message.text
+        self.ask_for_extra_details(message)
 
     def ask_for_extra_details(self, message):
-        """Запрашивает у пользователя дополнительные сведения."""
         user_id = message.from_user.id
-        self.user_data[user_id]['birth_date'] = message.text  # Правильно сохраняем дату рождения
         self.bot.send_message(message.chat.id, "Введите дополнительные сведения (если необходимо):")
-        self.bot.register_next_step_handler(message, self.confirm_and_display_data)
+        self.bot.register_next_step_handler(message, self.save_extra_details)
+
+    def save_extra_details(self, message):
+        user_id = message.from_user.id
+        self.user_data[user_id]['extra_details'] = message.text
+        self.confirm_and_display_data(message)
 
     def confirm_and_display_data(self, message):
         user_id = message.from_user.id
-        self.user_data[user_id]['extra_details'] = message.text  # Сохраняем дополнительные сведения
-        # Формирование сообщения для подтверждения данных
-        confirmation_message = f"Пожалуйста, проверьте введенные данные:\n\n" \
-                               f"Тип справки: {self.user_data[user_id]['certificate_type']}\n" \
-                               f"Адрес: {self.user_data[user_id]['address']}\n" \
-                               f"ФИО: {self.user_data[user_id]['full_name']}\n" \
-                               f"Дата рождения: {self.user_data[user_id]['birth_date']}\n" \
-                               f"Дополнительные сведения: {self.user_data[user_id]['extra_details']}"
-        # Отправка сообщения с подтверждением и кнопками для выбора
+        # Здесь уже все данные сохранены, просто извлекаем их для подтверждения
+        address = self.user_data[user_id].get('address', 'Не указан')
+        full_name = self.user_data[user_id].get('full_name', 'Не указано')
+        birth_date = self.user_data[user_id].get('birth_date', 'Не указана')
+        extra_details = self.user_data[user_id].get('extra_details', 'Не указано')
+        certificate_type = self.user_data[user_id].get('certificate_type', 'Не указано')
+
+        confirmation_message = f"""Пожалуйста, проверьте введенные данные:
+
+    Тип справки: {certificate_type}
+    Адрес: {address}
+    ФИО: {full_name}
+    Дата рождения: {birth_date}
+    Дополнительные сведения: {extra_details}"""
+
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
         markup.add(types.KeyboardButton('Данные верны'), types.KeyboardButton('Редактировать'))
         self.bot.send_message(message.chat.id, confirmation_message, reply_markup=markup)
@@ -141,20 +165,18 @@ class CertificateHandler(BaseHandler):
     def process_edit_choice(self, message):
         """Обрабатывает выбор пользователя при редактировании данных."""
         user_id = message.from_user.id
-        # Проверяем, какие данные пользователь хочет изменить и вызываем соответствующий метод
         if message.text == 'Изменить адрес':
-            self.ask_for_address(message)
+            self.ask_for_address(message, return_to_confirmation=True)
         elif message.text == 'Изменить ФИО':
-            self.ask_for_full_name(message)
+            self.ask_for_full_name(message, return_to_confirmation=True)
         elif message.text == 'Изменить дату рождения':
-            self.ask_for_birth_date(message)
+            self.ask_for_birth_date(message, return_to_confirmation=True)
         elif message.text == 'Изменить дополнительные сведения':
-            self.ask_for_extra_details(message)
+            self.ask_for_extra_details(message, return_to_confirmation=True)
         elif message.text == 'Отмена':
             self.show_certificate_options(message)  # Отмена и возвращение к выбору справок
         else:
-            self.bot.send_message(user_id, "Неизвестный выбор. Пожалуйста, попробуйте еще раз.")
-            self.edit_user_data(user_id)
+            self.handle_unknown(message, self.confirm_and_display_data)
 
     def confirmation_and_save(self, message):
         """Сохраняет все данные справки и подтверждает пользователю завершение процесса."""
