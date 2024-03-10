@@ -48,24 +48,36 @@ class CertificateHandler(BaseHandler):
         else:
             self.handle_unknown(message, self.show_certificate_options)
 
-    def ask_for_address(self, message):
+    def ask_for_address(self, message, return_to_confirmation=False):
+        """Запрашивает у пользователя Адрес и сохраняет его."""
         user_id = message.from_user.id
-        # Тут уже не должно быть присвоения типа справки, только запрос адреса
-        self.bot.send_message(message.chat.id, "Введите адрес проживания (город, улица, дом):")
-        self.bot.register_next_step_handler(message, self.save_address)
+        self.bot.send_message(message.chat.id, "Введите адрес проживания (Город, улица, дом, корпус, квартира):")
+        if return_to_confirmation:
+            next_step_handler = self.save_address_and_confirm
+        else:
+            next_step_handler = self.save_address
+        self.bot.register_next_step_handler(message, next_step_handler)
 
     def save_address(self, message):
         user_id = message.from_user.id
-        # Сохранение адреса в данные пользователя
         self.user_data[user_id]['address'] = message.text
-        # Продолжение диалога (например, запрос ФИО)
         self.ask_for_full_name(message)
 
-    def ask_for_full_name(self, message, return_to_confirmation=False):
+    def save_address_and_confirm(self, message):
+        """Сохраняет Адрес пользователя и возвращает его к подтверждению данных."""
         user_id = message.from_user.id
-        self.bot.send_message(message.chat.id, "Введите ФИО полностью:")
-        next_step_handler = self.save_full_name_and_confirm if return_to_confirmation else self.save_full_name
-        self.bot.register_next_step_handler(message, self.save_full_name)
+        self.user_data[user_id]['address'] = message.text
+        self.confirm_and_display_data(message)
+
+    def ask_for_full_name(self, message, return_to_confirmation=False):
+        """Запрашивает у пользователя ФИО и сохраняет его."""
+        user_id = message.from_user.id
+        self.bot.send_message(message.chat.id, "Введите ФИО полностью того, на кого оформляется справка:")
+        if return_to_confirmation:
+            next_step_handler = self.save_full_name_and_confirm
+        else:
+            next_step_handler = self.save_full_name
+        self.bot.register_next_step_handler(message, next_step_handler)
 
     def save_full_name(self, message):
         user_id = message.from_user.id
@@ -73,25 +85,47 @@ class CertificateHandler(BaseHandler):
         self.ask_for_birth_date(message)
 
     def save_full_name_and_confirm(self, message):
-        self.save_full_name(message)
+        """Сохраняет ФИО пользователя и возвращает его к подтверждению данных."""
+        user_id = message.from_user.id
+        self.user_data[user_id]['full_name'] = message.text
         self.confirm_and_display_data(message)
 
-    def ask_for_birth_date(self, message):
+    def ask_for_birth_date(self, message, return_to_confirmation=False):
         user_id = message.from_user.id
         self.bot.send_message(message.chat.id, "Введите дату рождения (в формате ДД.ММ.ГГГГ):")
-        self.bot.register_next_step_handler(message, self.save_birth_date)
+        if return_to_confirmation:
+            next_step_handler = self.save_birth_date_and_confirm
+        else:
+            next_step_handler = self.save_birth_date
+        self.bot.register_next_step_handler(message, next_step_handler)
 
     def save_birth_date(self, message):
         user_id = message.from_user.id
         self.user_data[user_id]['birth_date'] = message.text
         self.ask_for_extra_details(message)
 
-    def ask_for_extra_details(self, message):
+    def save_birth_date_and_confirm(self, message):
+        """Сохраняет Дату рождения пользователя и возвращает его к подтверждению данных."""
+        user_id = message.from_user.id
+        self.user_data[user_id]['birth_date'] = message.text
+        self.confirm_and_display_data(message)
+
+    def ask_for_extra_details(self, message, return_to_confirmation=False):
         user_id = message.from_user.id
         self.bot.send_message(message.chat.id, "Введите дополнительные сведения (если необходимо):")
-        self.bot.register_next_step_handler(message, self.save_extra_details)
+        if return_to_confirmation:
+            next_step_handler = self.save_extra_details_and_confirm
+        else:
+            next_step_handler = self.save_extra_details
+        self.bot.register_next_step_handler(message, next_step_handler)
 
     def save_extra_details(self, message):
+        user_id = message.from_user.id
+        self.user_data[user_id]['extra_details'] = message.text
+        self.confirm_and_display_data(message)
+
+    def save_extra_details_and_confirm(self, message):
+        """Сохраняет Дополнительные сведения пользователя и возвращает его к подтверждению данных."""
         user_id = message.from_user.id
         self.user_data[user_id]['extra_details'] = message.text
         self.confirm_and_display_data(message)
@@ -174,7 +208,7 @@ class CertificateHandler(BaseHandler):
         elif message.text == 'Изменить дополнительные сведения':
             self.ask_for_extra_details(message, return_to_confirmation=True)
         elif message.text == 'Отмена':
-            self.show_certificate_options(message)  # Отмена и возвращение к выбору справок
+            self.confirm_and_display_data(message)
         else:
             self.handle_unknown(message, self.confirm_and_display_data)
 
