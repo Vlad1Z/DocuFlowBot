@@ -1,6 +1,7 @@
 from telebot import types
 from .BaseHandler import BaseHandler
-from utils import send_notification  # Убедитесь, что это правильный путь импорта
+from utils import send_notification
+from datetime import datetime
 
 
 class CertificateHandler(BaseHandler):
@@ -50,45 +51,67 @@ class CertificateHandler(BaseHandler):
 
     def ask_for_address(self, message, return_to_confirmation=False):
         """Запрашивает у пользователя Адрес и сохраняет его."""
-        user_id = message.from_user.id
         self.bot.send_message(message.chat.id, "Введите адрес проживания (Город, улица, дом, корпус, квартира):")
-        if return_to_confirmation:
-            next_step_handler = self.save_address_and_confirm
-        else:
-            next_step_handler = self.save_address
-        self.bot.register_next_step_handler(message, next_step_handler)
+        # Здесь определяем, какой обработчик будет вызван после валидации
+        next_step_handler = self.save_address_and_confirm if return_to_confirmation else self.save_address
+        # И уже здесь передаем message и next_step_handler в метод валидации
+        self.bot.register_next_step_handler(message, lambda msg: self.validate_input(msg, next_step_handler))
 
     def save_address(self, message):
         user_id = message.from_user.id
-        self.user_data[user_id]['address'] = message.text
-        self.ask_for_full_name(message)
+        address = message.text.strip()
+        if not BaseHandler.contains_two_numbers_and_text(address):
+            msg = self.bot.send_message(message.chat.id,
+                                        "Адрес введен некорректно. Убедитесь, что он содержит название улицы, номер дома, номер квартиры, и повторите попытку:")
+            self.bot.register_next_step_handler(msg, self.save_address)
+        else:
+            self.user_data[user_id]['address'] = address
+            self.ask_for_full_name(message)
 
     def save_address_and_confirm(self, message):
-        """Сохраняет Адрес пользователя и возвращает его к подтверждению данных."""
         user_id = message.from_user.id
-        self.user_data[user_id]['address'] = message.text
-        self.confirm_and_display_data(message)
+        address = message.text.strip()
+        if not BaseHandler.contains_two_numbers_and_text(address):
+            msg = self.bot.send_message(message.chat.id,
+                                        "Адрес введен некорректно. Убедитесь, что он содержит название улицы, номер дома, номер квартиры, и повторите попытку:")
+            self.bot.register_next_step_handler(msg, self.save_address_and_confirm)
+        else:
+            self.user_data[user_id]['address'] = address
+            self.confirm_and_display_data(message)
 
     def ask_for_full_name(self, message, return_to_confirmation=False):
         """Запрашивает у пользователя ФИО и сохраняет его."""
-        user_id = message.from_user.id
         self.bot.send_message(message.chat.id, "Введите ФИО полностью того, на кого оформляется справка:")
-        if return_to_confirmation:
-            next_step_handler = self.save_full_name_and_confirm
-        else:
-            next_step_handler = self.save_full_name
-        self.bot.register_next_step_handler(message, next_step_handler)
+        next_step_handler = self.save_full_name_and_confirm if return_to_confirmation else self.save_full_name
+        self.bot.register_next_step_handler(message, lambda msg: self.validate_input(msg, next_step_handler))
 
     def save_full_name(self, message):
         user_id = message.from_user.id
-        self.user_data[user_id]['full_name'] = message.text
-        self.ask_for_birth_date(message)
+        full_name = message.text.strip()  # Удаляем лишние пробелы по краям
+        # Простая проверка на количество слов в ФИО
+        if len(full_name.split()) >= 3 and len(full_name) > 4:
+            self.user_data[user_id]['full_name'] = full_name
+            self.ask_for_birth_date(message)
+        else:
+            msg = self.bot.send_message(
+                message.chat.id,
+                "Пожалуйста, введите ваше полное ФИО."
+            )
+            self.bot.register_next_step_handler(msg, self.save_full_name)
 
     def save_full_name_and_confirm(self, message):
-        """Сохраняет ФИО пользователя и возвращает его к подтверждению данных."""
         user_id = message.from_user.id
-        self.user_data[user_id]['full_name'] = message.text
-        self.confirm_and_display_data(message)
+        full_name = message.text.strip()  # Удаляем лишние пробелы по краям
+        # Простая проверка на количество слов в ФИО
+        if len(full_name.split()) >= 3 and len(full_name) > 4:
+            self.user_data[user_id]['full_name'] = full_name
+            self.confirm_and_display_data(message)
+        else:
+            msg = self.bot.send_message(
+                message.chat.id,
+                "Пожалуйста, введите ваше полное ФИО."
+            )
+            self.bot.register_next_step_handler(msg, self.save_full_name_and_confirm)
 
     def ask_for_birth_date(self, message, return_to_confirmation=False):
         user_id = message.from_user.id
@@ -100,24 +123,81 @@ class CertificateHandler(BaseHandler):
         self.bot.register_next_step_handler(message, next_step_handler)
 
     def save_birth_date(self, message):
+        """Сохраняет дату рождения пользователя после проверки валидности."""
         user_id = message.from_user.id
-        self.user_data[user_id]['birth_date'] = message.text
-        self.ask_for_extra_details(message)
+        date_text = message.text
+        try:
+            # Попытка преобразовать текст в дату
+            birth_date = datetime.strptime(date_text, '%d.%m.%Y')
+            # Если дата корректна, сохраняем и переходим к следующему шагу
+            self.user_data[user_id]['birth_date'] = birth_date.strftime('%d.%m.%Y')
+            self.ask_for_number_of_certificates(message)
+        except ValueError:
+            # Если дата некорректна, просим ввести снова
+            msg = self.bot.send_message(
+                message.chat.id,
+                "Дата введена некорректно. Пожалуйста, введите дату в формате ДД.ММ.ГГГГ:"
+            )
+            self.bot.register_next_step_handler(msg, self.save_birth_date)
 
     def save_birth_date_and_confirm(self, message):
         """Сохраняет Дату рождения пользователя и возвращает его к подтверждению данных."""
         user_id = message.from_user.id
-        self.user_data[user_id]['birth_date'] = message.text
-        self.confirm_and_display_data(message)
+        date_text = message.text
+        try:
+            # Попытка преобразовать текст в дату
+            birth_date = datetime.strptime(date_text, '%d.%m.%Y')
+            # Если дата корректна, сохраняем и продолжаем
+            self.user_data[user_id]['birth_date'] = birth_date.strftime('%d.%m.%Y')
+            self.confirm_and_display_data(message)
+        except ValueError:
+            # Если дата некорректна, просим ввести снова
+            msg = self.bot.send_message(message.chat.id,
+                                        "Дата введена некорректно. Пожалуйста, введите дату в формате ДД.ММ.ГГГГ:")
+            self.bot.register_next_step_handler(msg, self.save_birth_date_and_confirm)
+
+    def ask_for_number_of_certificates(self, message, return_to_confirmation=False):
+        user_id = message.from_user.id
+        self.bot.send_message(message.chat.id, "Введите необходимое количество справок:")
+        if return_to_confirmation:
+            next_step_handler = self.save_number_of_certificates_and_confirm
+        else:
+            next_step_handler = self.save_number_of_certificates
+        self.bot.register_next_step_handler(message, next_step_handler)
+
+    def save_number_of_certificates(self, message):
+        user_id = message.from_user.id
+        try:
+            number = int(message.text)
+            if not 1 <= number <= 10:
+                raise ValueError
+            self.user_data[user_id]['number_of_certificates'] = number
+            self.ask_for_extra_details(message)
+        except ValueError:
+            self.bot.send_message(message.chat.id, "Пожалуйста, введите число от 1 до 10.")
+            # Повторно запросите ввод количества справок, если ввод некорректен
+            self.bot.register_next_step_handler(message, self.save_number_of_certificates)
+
+    def save_number_of_certificates_and_confirm(self, message):
+        """Сохраняет необходимое Количество справок пользователя и возвращает его к подтверждению данных."""
+        user_id = message.from_user.id
+        try:
+            number = int(message.text)
+            if not 1 <= number <= 10:
+                raise ValueError
+            self.user_data[user_id]['number_of_certificates'] = number
+            self.confirm_and_display_data(message)
+        except ValueError:
+            self.bot.send_message(message.chat.id, "Пожалуйста, введите число от 1 до 10.")
+            # Повторно запросите ввод количества справок, если ввод некорректен
+            self.bot.register_next_step_handler(message, self.save_number_of_certificates)
 
     def ask_for_extra_details(self, message, return_to_confirmation=False):
-        user_id = message.from_user.id
+        """Запрашивает у пользователя дополнительные сведения и сохраняет их."""
         self.bot.send_message(message.chat.id, "Введите дополнительные сведения (если необходимо):")
-        if return_to_confirmation:
-            next_step_handler = self.save_extra_details_and_confirm
-        else:
-            next_step_handler = self.save_extra_details
-        self.bot.register_next_step_handler(message, next_step_handler)
+        next_step_handler = self.save_extra_details_and_confirm if return_to_confirmation else self.save_extra_details
+        self.bot.register_next_step_handler(message,
+                                            lambda msg: self.validate_input(msg, next_step_handler))
 
     def save_extra_details(self, message):
         user_id = message.from_user.id
@@ -136,6 +216,7 @@ class CertificateHandler(BaseHandler):
         address = self.user_data[user_id].get('address', 'Не указан')
         full_name = self.user_data[user_id].get('full_name', 'Не указано')
         birth_date = self.user_data[user_id].get('birth_date', 'Не указана')
+        number_of_certificates = self.user_data[user_id].get('number_of_certificates', 'Не указана')
         extra_details = self.user_data[user_id].get('extra_details', 'Не указано')
         certificate_type = self.user_data[user_id].get('certificate_type', 'Не указано')
 
@@ -145,6 +226,7 @@ class CertificateHandler(BaseHandler):
     Адрес: {address}
     ФИО: {full_name}
     Дата рождения: {birth_date}
+    Количество справок: {number_of_certificates}
     Дополнительные сведения: {extra_details}"""
 
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
@@ -188,6 +270,7 @@ class CertificateHandler(BaseHandler):
             'Изменить адрес',
             'Изменить ФИО',
             'Изменить дату рождения',
+            'Изменить количество справок',
             'Изменить дополнительные сведения',
             'Отмена'
         ]
@@ -205,6 +288,8 @@ class CertificateHandler(BaseHandler):
             self.ask_for_full_name(message, return_to_confirmation=True)
         elif message.text == 'Изменить дату рождения':
             self.ask_for_birth_date(message, return_to_confirmation=True)
+        elif message.text == 'Изменить количество справок':
+            self.ask_for_number_of_certificates(message, return_to_confirmation=True)
         elif message.text == 'Изменить дополнительные сведения':
             self.ask_for_extra_details(message, return_to_confirmation=True)
         elif message.text == 'Отмена':
