@@ -5,12 +5,21 @@ from datetime import datetime
 
 
 class CertificateHandler(BaseHandler):
+    """
+    Класс для обработки запросов на получение различных справок от пользователя.
+    Отображает опции справок и обрабатывает последующий ввод данных.
+    """
     def handle(self, message):
-        """Обрабатывает входящее сообщение и отображает опции справок."""
+        """
+        Основной метод для обработки входящего сообщения.
+        Выводит пользователю клавиатуру с выбором справок.
+        """
         self.show_certificate_options(message)
 
     def show_certificate_options(self, message):
-        """Отображает пользователю клавиатуру с опциями различных справок, по одной опции на строку."""
+        """
+        Отображает клавиатуру с опциями справок, доступных для запроса.
+        """
         certificate_markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
         buttons = [
             'Справка о месте жительства и составе семьи',
@@ -21,13 +30,14 @@ class CertificateHandler(BaseHandler):
         ]
         for button in buttons:
             certificate_markup.row(types.KeyboardButton(button))
-        # Отправляем сообщение с созданной клавиатурой пользователю
         self.bot.send_message(message.chat.id, "Выберите тип справки:", reply_markup=certificate_markup)
-        # Регистрируем следующий обработчик для выбора пользователя
         self.bot.register_next_step_handler(message, self.process_certificate_choice)
 
     def process_certificate_choice(self, message):
-        """Обрабатывает выбор пользователя после отображения клавиатуры справок."""
+        """
+        Обрабатывает выбор справки пользователем.
+        Запускает процесс сбора дополнительной информации.
+        """
         user_id = message.from_user.id
         if user_id not in self.user_data:
             self.user_data[user_id] = {}
@@ -50,25 +60,31 @@ class CertificateHandler(BaseHandler):
             self.handle_unknown(message, self.show_certificate_options)
 
     def ask_for_address(self, message, return_to_confirmation=False):
-        """Запрашивает у пользователя Адрес и сохраняет его."""
+        """
+        Запрашивает у пользователя адрес.
+        В зависимости от параметра 'return_to_confirmation', определяет следующий шаг в процессе.
+        """
         self.bot.send_message(message.chat.id, "Введите адрес регистарции (Город, улица, дом, корпус, квартира):")
-        # Здесь определяем, какой обработчик будет вызван после валидации
         next_step_handler = self.save_address_and_confirm if return_to_confirmation else self.save_address
-        # И уже здесь передаем message и next_step_handler в метод валидации
         self.bot.register_next_step_handler(message, lambda msg: self.validate_input(msg, next_step_handler))
 
     def save_address(self, message):
+        """
+        Сохраняет адрес пользователя и запрашивает следующий набор данных.
+        """
         user_id = message.from_user.id
         address = message.text.strip()
         if not BaseHandler.contains_two_numbers_and_text(address):
-            msg = self.bot.send_message(message.chat.id,
-                                        "Адрес введен некорректно. Убедитесь, что он содержит название улицы, номер дома, номер квартиры, и повторите попытку:")
+            msg = self.bot.send_message(message.chat.id, "Адрес введен некорректно. Убедитесь, что он содержит название улицы, номер дома, номер квартиры, и повторите попытку:")
             self.bot.register_next_step_handler(msg, self.save_address)
         else:
             self.user_data[user_id]['address'] = address
             self.ask_for_full_name(message)
 
     def save_address_and_confirm(self, message):
+        """
+        Сохраняет адрес пользователя и переходит к подтверждению данных.
+        """
         user_id = message.from_user.id
         address = message.text.strip()
         if not BaseHandler.contains_two_numbers_and_text(address):
@@ -80,12 +96,17 @@ class CertificateHandler(BaseHandler):
             self.confirm_and_display_data(message)
 
     def ask_for_full_name(self, message, return_to_confirmation=False):
-        """Запрашивает у пользователя ФИО и сохраняет его."""
+        """
+        Запрашивает у пользователя ФИО для справки.
+        """
         self.bot.send_message(message.chat.id, "Введите ФИО полностью того, на кого оформляется справка:")
         next_step_handler = self.save_full_name_and_confirm if return_to_confirmation else self.save_full_name
         self.bot.register_next_step_handler(message, lambda msg: self.validate_input(msg, next_step_handler))
 
     def save_full_name(self, message):
+        """
+        Сохраняет ФИО пользователя.
+        """
         user_id = message.from_user.id
         full_name = message.text.strip()  # Удаляем лишние пробелы по краям
         # Простая проверка на количество слов в ФИО
@@ -100,6 +121,9 @@ class CertificateHandler(BaseHandler):
             self.bot.register_next_step_handler(msg, self.save_full_name)
 
     def save_full_name_and_confirm(self, message):
+        """
+        Сохраняет ФИО пользователя и переходит к подтверждению данных.
+        """
         user_id = message.from_user.id
         full_name = message.text.strip()  # Удаляем лишние пробелы по краям
         # Простая проверка на количество слов в ФИО
@@ -114,6 +138,7 @@ class CertificateHandler(BaseHandler):
             self.bot.register_next_step_handler(msg, self.save_full_name_and_confirm)
 
     def ask_for_birth_date(self, message, return_to_confirmation=False):
+        """Сохраняет дату рождения пользователя после проверки формата даты."""
         user_id = message.from_user.id
         self.bot.send_message(message.chat.id, "Введите дату рождения (в формате ДД.ММ.ГГГГ):")
         if return_to_confirmation:
@@ -157,6 +182,7 @@ class CertificateHandler(BaseHandler):
             self.bot.register_next_step_handler(msg, self.save_birth_date_and_confirm)
 
     def ask_for_number_of_certificates(self, message, return_to_confirmation=False):
+        """Запрашивает у пользователя количество необходимых справок."""
         user_id = message.from_user.id
         self.bot.send_message(message.chat.id, "Введите необходимое количество справок:")
         if return_to_confirmation:
@@ -166,6 +192,7 @@ class CertificateHandler(BaseHandler):
         self.bot.register_next_step_handler(message, next_step_handler)
 
     def save_number_of_certificates(self, message):
+        """Сохраняет количество запрашиваемых пользователем справок."""
         user_id = message.from_user.id
         try:
             number = int(message.text)
@@ -193,24 +220,26 @@ class CertificateHandler(BaseHandler):
             self.bot.register_next_step_handler(message, self.save_number_of_certificates)
 
     def ask_for_extra_details(self, message, return_to_confirmation=False):
-        """Запрашивает у пользователя дополнительные сведения и сохраняет их."""
+        """Запрашивает у пользователя дополнительные сведения, если они необходимы для справки."""
         self.bot.send_message(message.chat.id, "Введите дополнительные сведения (если необходимо):")
         next_step_handler = self.save_extra_details_and_confirm if return_to_confirmation else self.save_extra_details
         self.bot.register_next_step_handler(message,
                                             lambda msg: self.validate_input(msg, next_step_handler))
 
     def save_extra_details(self, message):
+        """Сохраняет дополнительные сведения, предоставленные пользователем."""
         user_id = message.from_user.id
         self.user_data[user_id]['extra_details'] = message.text
         self.confirm_and_display_data(message)
 
     def save_extra_details_and_confirm(self, message):
-        """Сохраняет Дополнительные сведения пользователя и возвращает его к подтверждению данных."""
+        """Сохраняет дополнительные сведения пользователя и переходит к подтверждению данных."""
         user_id = message.from_user.id
         self.user_data[user_id]['extra_details'] = message.text
         self.confirm_and_display_data(message)
 
     def confirm_and_display_data(self, message):
+        """Отображает пользователю все введённые данные для подтверждения перед финальной отправкой."""
         user_id = message.from_user.id
         # Здесь уже все данные сохранены, просто извлекаем их для подтверждения
         address = self.user_data[user_id].get('address', 'Не указан')
@@ -235,6 +264,7 @@ class CertificateHandler(BaseHandler):
         self.bot.register_next_step_handler(message, self.ask_for_phone_number)
 
     def ask_for_phone_number(self, message):
+        """Запрашивает у пользователя номер телефона для возможной обратной связи."""
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
         button_phone = types.KeyboardButton(text="Отправить номер телефона", request_contact=True)
         button_cancel = types.KeyboardButton(text="Отмена")
@@ -245,6 +275,7 @@ class CertificateHandler(BaseHandler):
         self.bot.register_next_step_handler(msg, self.handle_phone_number)
 
     def handle_phone_number(self, message):
+        """Обрабатывает номер телефона, предоставленный пользователем, или его отказ от предоставления."""
         user_info = message.from_user
         user_data = self.user_data.get(user_info.id, {})
         user_name = f"{user_info.first_name} {user_info.last_name}" if user_info.last_name else user_info.first_name
@@ -280,13 +311,12 @@ class CertificateHandler(BaseHandler):
         self.show_final_choice(message)
 
     def final_confirmation(self, message, phone_number=None):
-        """Обрабатывает ответ пользователя на подтверждение данных."""
+        """Заключительный этап, где пользователь подтверждает все введённые данные."""
         user_info = message.from_user
         user_name = f"{user_info.first_name} {user_info.last_name}" if user_info.last_name else user_info.first_name
         user_id = user_info.id
         username = user_info.username
         user_data = self.user_data.get(user_id, {})
-        # Теперь phone_number может быть передан сюда напрямую
         if phone_number:
             user_data['phone_number'] = phone_number
 
@@ -298,10 +328,10 @@ class CertificateHandler(BaseHandler):
                 f"Username: @{username}\n"
                 f"Телефон: {user_data.get('phone_number', 'Не указан')}")
             # Передаем эту строку в функцию отправки уведомления и дальнейшую обработку
-            send_notification(user_id, user_data, user_info_str)  # Убедитесь, что у вас есть такая функция
+            send_notification(user_id, user_data, user_info_str)
             self.show_final_choice(message)
         elif message.text == 'Редактировать':
-            self.edit_user_data(message)  # Убедитесь, что edit_user_data правильно обрабатывает передачу message
+            self.edit_user_data(message)
         else:
             self.handle_unknown(message, self.confirm_and_display_data)
 
@@ -341,6 +371,9 @@ class CertificateHandler(BaseHandler):
             self.handle_unknown(message, self.confirm_and_display_data)
 
     def show_final_choice(self, message):
+        """
+        Показывает пользователю финальные опции после обработки и подтверждения всех данных.
+        """
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
         buttons = ["Заказать еще справку", "Вернуться в главное меню", "Спасибо за информацию"]
         for button in buttons:
@@ -349,6 +382,9 @@ class CertificateHandler(BaseHandler):
         self.bot.register_next_step_handler(message, self.handle_final_choice)
 
     def handle_final_choice(self, message):
+        """
+        Обрабатывает финальный выбор пользователя после получения справки.
+        """
         if message.text == "Заказать еще справку":
             self.show_certificate_options(message)
         elif message.text == "Вернуться в главное меню":
@@ -358,4 +394,4 @@ class CertificateHandler(BaseHandler):
             self.bot.send_message(message.chat.id, "Спасибо! Если у вас возникнут дополнительные вопросы, вы всегда можете к нам обратиться.")
         else:
             self.bot.send_message(message.chat.id, "Неизвестная команда, пожалуйста, выберите один из предложенных вариантов.")
-            self.show_final_choice(message)  # Предложить пользователю снова сделать выбор
+            self.show_final_choice(message)
