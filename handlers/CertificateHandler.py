@@ -51,7 +51,7 @@ class CertificateHandler(BaseHandler):
 
     def ask_for_address(self, message, return_to_confirmation=False):
         """Запрашивает у пользователя Адрес и сохраняет его."""
-        self.bot.send_message(message.chat.id, "Введите адрес проживания (Город, улица, дом, корпус, квартира):")
+        self.bot.send_message(message.chat.id, "Введите адрес регистарции (Город, улица, дом, корпус, квартира):")
         # Здесь определяем, какой обработчик будет вызван после валидации
         next_step_handler = self.save_address_and_confirm if return_to_confirmation else self.save_address
         # И уже здесь передаем message и next_step_handler в метод валидации
@@ -232,32 +232,75 @@ class CertificateHandler(BaseHandler):
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
         markup.add(types.KeyboardButton('Данные верны'), types.KeyboardButton('Редактировать'))
         self.bot.send_message(message.chat.id, confirmation_message, reply_markup=markup)
-        self.bot.register_next_step_handler(message, self.final_confirmation)
+        self.bot.register_next_step_handler(message, self.ask_for_phone_number)
 
-    def final_confirmation(self, message):
+    def ask_for_phone_number(self, message):
+        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
+        button_phone = types.KeyboardButton(text="Отправить номер телефона", request_contact=True)
+        button_cancel = types.KeyboardButton(text="Отмена")
+        markup.add(button_phone, button_cancel)
+        msg = self.bot.send_message(message.chat.id,
+                                    "Для обратной связи, пожалуйста, поделитесь своим номером телефона или нажмите 'Отмена'.",
+                                    reply_markup=markup)
+        self.bot.register_next_step_handler(msg, self.handle_phone_number)
+
+    def handle_phone_number(self, message):
+        user_info = message.from_user
+        user_data = self.user_data.get(user_info.id, {})
+        user_name = f"{user_info.first_name} {user_info.last_name}" if user_info.last_name else user_info.first_name
+        phone_number = "Не указан"
+
+        if message.contact is not None:
+            # Пользователь поделился номером телефона
+            phone_number = message.contact.phone_number
+            user_data['phone_number'] = phone_number  # Сохраняем номер телефона
+            self.bot.send_message(message.chat.id, "Спасибо, ваш номер телефона получен.",
+                                  reply_markup=types.ReplyKeyboardRemove())
+        elif message.text == "Отмена":
+            # Пользователь выбрал "Отмена"
+            self.bot.send_message(message.chat.id, "Вы отменили отправку номера телефона.",
+                                  reply_markup=types.ReplyKeyboardRemove())
+        else:
+            # Неожиданный ввод
+            self.ask_for_phone_number(message)  # Повторный запрос на номер телефона
+            return
+
+        # Формируем строку с информацией о пользователе для уведомления
+        user_info_str = (
+            f"Имя: {user_name}\n"
+            f"ID: {user_info.id}\n"
+            f"Username: @{user_info.username if user_info.username else 'Не указан'}\n"
+            f"Телефон: {phone_number}"
+        )
+
+        # Отправляем уведомление
+        send_notification(user_info.id, user_data, user_info_str)
+
+        # Переходим к финальному выбору
+        self.show_final_choice(message)
+
+    def final_confirmation(self, message, phone_number=None):
         """Обрабатывает ответ пользователя на подтверждение данных."""
         user_info = message.from_user
         user_name = f"{user_info.first_name} {user_info.last_name}" if user_info.last_name else user_info.first_name
         user_id = user_info.id
         username = user_info.username
-        # Телефонный номер нельзя получить напрямую через message.from_user, его можно получить только если пользователь явно отправил его через специальный интерфейс.
-        # phone_number = user_info.phone_number if hasattr(user_info, 'phone_number') else 'Не указан'
+        user_data = self.user_data.get(user_id, {})
+        # Теперь phone_number может быть передан сюда напрямую
+        if phone_number:
+            user_data['phone_number'] = phone_number
 
-        if message.text == 'Данные верны':
-            # Данные подтверждены, можно их сохранять/обрабатывать
-            user_data = self.user_data.get(user_id, {})
-            # Подготовка строки с информацией о пользователе
+        if message.text == 'Данные верны' or phone_number:
+            # Подготовка строки с информацией о пользователе и его данных
             user_info_str = (
                 f"Имя: {user_name}\n"
                 f"ID: {user_id}\n"
-                f"Username: @{username}")
-            # Передаем эту строку в функцию отправки уведомления
-            send_notification(user_id, user_data, user_info_str)
-            # Здесь ваш код для обработки и сохранения данных заявки...
-            # self.complete_certificate_request(user_id)
+                f"Username: @{username}\n"
+                f"Телефон: {user_data.get('phone_number', 'Не указан')}")
+            # Передаем эту строку в функцию отправки уведомления и дальнейшую обработку
+            send_notification(user_id, user_data, user_info_str)  # Убедитесь, что у вас есть такая функция
             self.show_final_choice(message)
         elif message.text == 'Редактировать':
-            # Пользователь выбрал редактирование данных
             self.edit_user_data(message)  # Убедитесь, что edit_user_data правильно обрабатывает передачу message
         else:
             self.handle_unknown(message, self.confirm_and_display_data)
@@ -297,27 +340,12 @@ class CertificateHandler(BaseHandler):
         else:
             self.handle_unknown(message, self.confirm_and_display_data)
 
-    def confirmation_and_save(self, message):
-        """Сохраняет все данные справки и подтверждает пользователю завершение процесса."""
-        user_id = message.from_user.id
-        # Здесь можно реализовать логику проверки и сохранения данных, отправки их на сервер или в базу данных
-        self.complete_certificate_request(user_id)
-
-    def complete_certificate_request(self, user_id):
-        """Завершает процесс заказа справки."""
-        # Предполагаем, что данные пользователя уже сохранены в self.user_data[user_id]
-        user_data = self.user_data.get(user_id, {})
-        # Отправляем уведомление о новой заявке
-        send_notification(user_id, user_data)
-        # Уведомляем пользователя о принятии заявки
-        self.bot.send_message(user_id, "Ваша заявка принята и будет обработана в ближайшее время.")
-
     def show_final_choice(self, message):
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
         buttons = ["Заказать еще справку", "Вернуться в главное меню", "Спасибо за информацию"]
         for button in buttons:
             markup.add(types.KeyboardButton(button))
-        self.bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
+        self.bot.send_message(message.chat.id, "Спасибо! Ваша заявка принята и будет обработана в ближайшее время.", reply_markup=markup)
         self.bot.register_next_step_handler(message, self.handle_final_choice)
 
     def handle_final_choice(self, message):
