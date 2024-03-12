@@ -259,7 +259,7 @@ class CertificateHandler(BaseHandler):
     Дополнительные сведения: {extra_details}"""
 
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
-        markup.add(types.KeyboardButton('Данные верны'), types.KeyboardButton('Редактировать'))
+        markup.add(types.KeyboardButton('Данные верны'), types.KeyboardButton('Редактировать'),types.KeyboardButton('Отменить заказ справки'))
         self.bot.send_message(message.chat.id, confirmation_message, reply_markup=markup)
         self.bot.register_next_step_handler(message, self.ask_for_phone_number)
 
@@ -332,8 +332,12 @@ class CertificateHandler(BaseHandler):
             self.show_final_choice(message)
         elif message.text == 'Редактировать':
             self.edit_user_data(message)
+        elif message.text == 'Отменить заказ справки':
+            from .StartHandler import StartHandler
+            StartHandler(self.bot).handle(message)
         else:
             self.handle_unknown(message, self.confirm_and_display_data)
+        return
 
     def edit_user_data(self, message):
         """Позволяет пользователю редактировать введенные ранее данные."""

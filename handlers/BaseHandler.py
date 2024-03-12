@@ -28,8 +28,6 @@ class BaseHandler:
         contains_text = bool(re.search(r'[a-zA-Zа-яА-Я]', string))
         return numbers_found and contains_text
 
-    import re
-
     def validate_input(self, message, next_step_handler, validation_rules=None):
         """
         Общий метод для валидации ввода пользователя.

@@ -1,10 +1,12 @@
 import requests
+from config import TELEBOT_TOKEN
+from config import id_chat_owner
 
 
 def send_notification(user_id, data, user_info_str):
     try:
-        chat_id = '1753749064'  # ID чата владельца бота
-        token = "6592198559:AAG77aB9aIvhcZMUZzKTTQ2TRhqRZWa0FW4"  # Убедитесь, что здесь ваш действительный токен
+        chat_id = id_chat_owner # ID чата владельца бота
+        token = TELEBOT_TOKEN   # Убедитесь, что здесь ваш действительный токен
         message = (
             f"Новый запрос от пользователя:\n{user_info_str}\n\n"
             f"Тип справки: {data.get('certificate_type', 'Не указано')}\n"
