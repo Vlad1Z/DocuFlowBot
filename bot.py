@@ -19,9 +19,12 @@ registration_info_handler = RegistrationInfoHandler(bot)
 
 # Функция для регистрации обработчиков
 def register_handlers():
+    """Регистрирует обработчики сообщений для различных команд и текстовых сообщений."""
     @bot.message_handler(commands=['start'])
     def handle_start(message):
-        start_handler.handle(message)
+        """Обрабатывает команду /start, отправляя пользователю приветственное сообщение
+            и отображая главное меню с параметром is_welcome=True."""
+        start_handler.handle(message, is_welcome=True)
 
     @bot.message_handler(func=lambda message: True)
     def handle_text(message):
