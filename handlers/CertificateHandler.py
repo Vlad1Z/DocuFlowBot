@@ -65,7 +65,7 @@ class CertificateHandler(BaseHandler):
         Запрашивает у пользователя адрес.
         В зависимости от параметра 'return_to_confirmation', определяет следующий шаг в процессе.
         """
-        self.bot.send_message(message.chat.id, "Введите адрес регистарции (Город, улица, дом, корпус, квартира):")
+        self.bot.send_message(message.chat.id, "Введите адрес регистарции (Улица, дом, корпус, квартира):")
         next_step_handler = self.save_address_and_confirm if return_to_confirmation else self.save_address
         self.bot.register_next_step_handler(message, lambda msg: self.validate_input(msg, next_step_handler))
 
@@ -265,7 +265,7 @@ class CertificateHandler(BaseHandler):
     def format_personal_info_message(self, user_id):
         user_data = self.user_data.get(user_id, {})
         message_parts = [
-            f"Пожалуйста, проверьте введенные данные:\n\n"
+            f"*Пожалуйста, проверьте введенные данные:*\n\n"
             f"1️⃣ Тип справки: {user_data.get('certificate_type', 'Не указан')}",
             f"2️⃣ Адрес: {user_data.get('address', 'Не указан')}",
             f"3️⃣ ФИО: {user_data.get('full_name', 'Не указан')}",
@@ -283,7 +283,7 @@ class CertificateHandler(BaseHandler):
         phone_number = user_data.get('phone_number', 'Не указан')
 
         message_parts = [
-            "Новый запрос от пользователя:\n",
+            "*Новый запрос от пользователя:*\n",
             f"Имя: {user_name}",
             f"ID: {user_id}",
             f"Username: @{username}",
