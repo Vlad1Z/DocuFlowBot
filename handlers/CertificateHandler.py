@@ -183,23 +183,13 @@ class CertificateHandler(BaseHandler):
             self.bot.register_next_step_handler(msg, self.save_birth_date_and_confirm)
 
     def ask_for_number_of_certificates(self, message, return_to_confirmation=False):
-        """Запрашивает у пользователя количество необходимых справок или устанавливает по умолчанию."""
         user_id = message.from_user.id
-        # Используем новый метод для проверки
-        if self.should_ask_for_number_of_certificates(user_id):
-            self.bot.send_message(message.chat.id, "Введите необходимое количество справок:")
-            next_step_handler = self.save_number_of_certificates_and_confirm if return_to_confirmation else self.save_number_of_certificates
+        self.bot.send_message(message.chat.id, "Введите необходимое количество справок:")
+        if return_to_confirmation:
+            next_step_handler = self.save_number_of_certificates_and_confirm
         else:
-            # Устанавливаем количество справок равным 1, если тип справки не требует запроса
-            self.user_data[user_id]['number_of_certificates'] = 1
-            next_step_handler = self.confirm_and_display_data if return_to_confirmation else self.ask_for_extra_details
-
+            next_step_handler = self.save_number_of_certificates
         self.bot.register_next_step_handler(message, next_step_handler)
-
-    def should_ask_for_number_of_certificates(self, user_id):
-        """Проверяет, нужно ли запрашивать количество справок в зависимости от типа справки."""
-        certificate_type = self.user_data.get(user_id, {}).get('certificate_type', '')
-        return certificate_type == 'Справка о месте жительства и составе семьи'
 
     def save_number_of_certificates(self, message):
         """Сохраняет количество запрашиваемых пользователем справок."""
@@ -251,7 +241,7 @@ class CertificateHandler(BaseHandler):
     def confirm_and_display_data(self, message):
         """Отображает пользователю все введённые данные для подтверждения перед финальной отправкой."""
         user_id = message.from_user.id
-        confirmation_message = self.format_confirmation_message(user_id)
+        confirmation_message = self.format_personal_info_message(user_id)
 
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
         markup.add(types.KeyboardButton('✅ Данные верны'),
@@ -260,21 +250,6 @@ class CertificateHandler(BaseHandler):
 
         self.bot.send_message(message.chat.id, confirmation_message, reply_markup=markup)
         self.bot.register_next_step_handler(message, self.on_confirmation_response)
-
-    def format_confirmation_message(self, user_id):
-        """Форматирует сообщение для подтверждения данных пользователем."""
-        user_data = self.user_data.get(user_id, {})
-        # Здесь уже все данные сохранены, просто извлекаем их для подтверждения
-        template = """❗️Пожалуйста, проверьте введенные данные:❗️
-
-        1️⃣ Тип справки: {certificate_type}
-        2️⃣ Адрес: {address}
-        3️⃣ ФИО: {full_name}
-        4️⃣ Дата рождения: {birth_date}
-        5️⃣ Количество справок: {number_of_certificates}
-        6️⃣ Дополнительные сведения: {extra_details}"""
-
-        return template.format(**user_data)
 
     def on_confirmation_response(self, message):
         """Обрабатывает ответ пользователя после подтверждения данных."""
@@ -287,6 +262,41 @@ class CertificateHandler(BaseHandler):
         else:
             self.handle_unknown(message, self.confirm_and_display_data)
 
+    def format_personal_info_message(self, user_id):
+        user_data = self.user_data.get(user_id, {})
+        message_parts = [
+            f"Пожалуйста, проверьте введенные данные:\n\n"
+            f"1️⃣ Тип справки: {user_data.get('certificate_type', 'Не указан')}",
+            f"2️⃣ Адрес: {user_data.get('address', 'Не указан')}",
+            f"3️⃣ ФИО: {user_data.get('full_name', 'Не указан')}",
+            f"4️⃣ Дата рождения: {user_data.get('birth_date', 'Не указан')}",
+            f"5️⃣ Количество справок: {user_data.get('number_of_certificates', 'Не указан')}",
+            f"6️⃣ Дополнительные сведения: {user_data.get('extra_details', 'Не указан')}"
+        ]
+        return "\n".join(message_parts)
+
+    def format_contact_info_message(self, user_id):
+        user_data = self.user_data.get(user_id, {})
+        user_info = self.bot.get_chat(user_id)
+        user_name = f"{user_info.first_name} {user_info.last_name}" if user_info.last_name else user_info.first_name
+        username = user_info.username if user_info.username else 'Не указан'
+        phone_number = user_data.get('phone_number', 'Не указан')
+
+        message_parts = [
+            "Новый запрос от пользователя:\n",
+            f"Имя: {user_name}",
+            f"ID: {user_id}",
+            f"Username: @{username}",
+            f"Телефон: {phone_number}\n",
+            f"1️⃣ Тип справки: {user_data.get('certificate_type', 'Не указан')}",
+            f"2️⃣ Адрес: {user_data.get('address', 'Не указан')}",
+            f"3️⃣ ФИО: {user_data.get('full_name', 'Не указан')}",
+            f"4️⃣ Дата рождения: {user_data.get('birth_date', 'Не указан')}",
+            f"5️⃣ Количество справок: {user_data.get('number_of_certificates', 'Не указан')}",
+            f"6️⃣ Дополнительные сведения: {user_data.get('extra_details', 'Не указан')}"
+        ]
+        return "\n".join(message_parts)
+
     def ask_for_phone_number(self, message):
         """Запрашивает у пользователя номер телефона для возможной обратной связи."""
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
@@ -297,68 +307,25 @@ class CertificateHandler(BaseHandler):
         self.bot.register_next_step_handler(msg, self.handle_phone_number)
 
     def handle_phone_number(self, message):
-        """Обрабатывает номер телефона, предоставленный пользователем, или его отказ от предоставления."""
         user_info = message.from_user
-        user_data = self.user_data.get(user_info.id, {})
-        user_name = f"{user_info.first_name} {user_info.last_name}" if user_info.last_name else user_info.first_name
-        phone_number = "Не указан"
+        user_id = user_info.id
+        user_data = self.user_data.get(user_id, {})
 
         if message.contact is not None:
-            # Пользователь поделился номером телефона
             phone_number = message.contact.phone_number
-            user_data['phone_number'] = phone_number  # Сохраняем номер телефона
-            self.bot.send_message(message.chat.id, "Спасибо, ваш номер телефона получен.",
-                                  reply_markup=types.ReplyKeyboardRemove())
-        elif message.text == "Отмена":
-            # Пользователь выбрал "Отмена"
-            self.bot.send_message(message.chat.id, "Вы отменили отправку номера телефона.",
-                                  reply_markup=types.ReplyKeyboardRemove())
-        else:
-            # Неожиданный ввод
-            self.ask_for_phone_number(message)  # Повторный запрос на номер телефона
-            return
-
-        # Формируем строку с информацией о пользователе для уведомления
-        user_info_str = (
-            f"Имя: {user_name}\n"
-            f"ID: {user_info.id}\n"
-            f"Username: @{user_info.username if user_info.username else 'Не указан'}\n"
-            f"Телефон: {phone_number}"
-        )
-
-        # Отправляем уведомление
-        send_notification(user_info.id, user_data, user_info_str)
-
-        # Переходим к финальному выбору
-        self.show_final_choice(message)
-
-    def final_confirmation(self, message, phone_number=None):
-        """Заключительный этап, где пользователь подтверждает все введённые данные."""
-        user_info = message.from_user
-        user_name = f"{user_info.first_name} {user_info.last_name}" if user_info.last_name else user_info.first_name
-        user_id = user_info.id
-        username = user_info.username
-        user_data = self.user_data.get(user_id, {})
-        if phone_number:
             user_data['phone_number'] = phone_number
-
-        if message.text == 'Данные верны' or phone_number:
-            # Подготовка строки с информацией о пользователе и его данных
-            user_info_str = (
-                f"Имя: {user_name}\n"
-                f"ID: {user_id}\n"
-                f"Username: @{username}\n"
-                f"Телефон: {user_data.get('phone_number', 'Не указан')}")
-            # Передаем эту строку в функцию отправки уведомления и дальнейшую обработку
-            send_notification(user_id, user_data, user_info_str)
-            self.show_final_choice(message)
-        elif message.text == 'Редактировать':
-            self.edit_user_data(message)
-        elif message.text == 'Отменить заказ справки':
-            StartHandler(self.bot).handle(message)
         else:
-            self.handle_unknown(message, self.on_confirmation_response)
-        return
+            phone_number = "Не указан"
+            if message.text != "❌ Отмена":
+                self.ask_for_phone_number(message)
+                return
+
+        # Формирование и отправка уведомления с полными данными пользователя
+        user_info_str = self.format_contact_info_message(user_id)
+        send_notification(user_id, user_info_str)
+
+        # Переход к следующему этапу
+        self.show_final_choice(message)
 
     def edit_user_data(self, message):
         """Позволяет пользователю редактировать введенные ранее данные."""
