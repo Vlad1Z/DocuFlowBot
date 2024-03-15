@@ -1,7 +1,6 @@
 from telebot import types
 from .BaseHandler import BaseHandler
 from utils import send_notification
-from .StartHandler import StartHandler
 from datetime import datetime
 
 
@@ -248,7 +247,7 @@ class CertificateHandler(BaseHandler):
                    types.KeyboardButton('✏️ Редактировать'),
                    types.KeyboardButton('❌ Отменить заказ справки'))
 
-        self.bot.send_message(message.chat.id, confirmation_message, reply_markup=markup)
+        self.bot.send_message(message.chat.id, confirmation_message, reply_markup=markup, parse_mode='Markdown')
         self.bot.register_next_step_handler(message, self.on_confirmation_response)
 
     def on_confirmation_response(self, message):
@@ -303,7 +302,7 @@ class CertificateHandler(BaseHandler):
         button_phone = types.KeyboardButton(text="✅ Отправить номер телефона", request_contact=True)
         button_cancel = types.KeyboardButton(text="❌ Отмена")
         markup.add(button_phone, button_cancel)
-        msg = self.bot.send_message(message.chat.id, "Для обратной связи, пожалуйста, поделитесь своим номером телефона или нажмите 'Отмена'.", reply_markup=markup)
+        msg = self.bot.send_message(message.chat.id, "Пожалуйста, нажмите кнопку '✅ Отправить мой номер телефона' ниже, чтобы автоматически поделиться вашим номером телефона для обратной связи. Если вы не хотите отправлять номер, нажмите '❌ Отмена'.", reply_markup=markup)
         self.bot.register_next_step_handler(msg, self.handle_phone_number)
 
     def handle_phone_number(self, message):
