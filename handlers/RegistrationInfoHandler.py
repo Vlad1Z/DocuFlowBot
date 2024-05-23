@@ -18,7 +18,7 @@ class RegistrationInfoHandler(BaseHandler):
             types.KeyboardButton('Лица, не являющиеся родственниками'),
             types.KeyboardButton('Вернуться назад')
         )
-        self.bot.send_message(message.chat.id, "....", reply_markup=registration_markup)
+        self.bot.send_message(message.chat.id, "Выберите тип регистрации:", reply_markup=registration_markup)
         self.bot.register_next_step_handler(message, self.registration_type)
 
     def registration_type(self, message):
