@@ -220,7 +220,11 @@ class CertificateHandler(BaseHandler):
 
     def ask_for_extra_details(self, message, return_to_confirmation=False):
         """Запрашивает у пользователя дополнительные сведения, если они необходимы для справки."""
-        self.bot.send_message(message.chat.id, "Введите дополнительные сведения (если необходимо):")
+        self.bot.send_message(message.chat.id,
+        "⚠️ Внимание!\n\n"
+        "Введите дополнительные сведения (особые нюансы, пожелания). ✍️\n\n"
+        "Если адрес доставки справки отличается от адреса прописки, укажите его. 🏠\n\n"
+        "Если ничего добавлять не нужно, пропустите этот шаг.")
         next_step_handler = self.save_extra_details_and_confirm if return_to_confirmation else self.save_extra_details
         self.bot.register_next_step_handler(message,
                                             lambda msg: self.validate_input(msg, next_step_handler))
