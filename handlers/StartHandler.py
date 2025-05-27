@@ -16,7 +16,7 @@ class StartHandler:
         :param message: Сообщение от пользователя.
         :param is_welcome: Булевый параметр, определяющий, следует ли отображать приветственное сообщение.
         """
-        self.bot.delete_state(message.from_user.id)
+        # self.bot.delete_state(message.from_user.id)
         self.main_menu(message, is_welcome)
 
     def send_help_message(self, message):
