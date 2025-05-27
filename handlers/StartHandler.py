@@ -1,4 +1,5 @@
 from telebot import types
+from telebot.types import ReplyKeyboardRemove
 
 
 class StartHandler:
@@ -16,7 +17,8 @@ class StartHandler:
         :param message: Сообщение от пользователя.
         :param is_welcome: Булевый параметр, определяющий, следует ли отображать приветственное сообщение.
         """
-        self.main_menu(message, is_welcome)
+        self.bot.delete_state(message.from_user.id)  # Сброс состояния
+        markup = ReplyKeyboardRemove()  # Удаление всех кнопок
 
     def send_help_message(self, message):
         """Отправляет сообщение с помощью пользователю."""
